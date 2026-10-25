@@ -5,7 +5,7 @@ import { test } from "node:test";
 process.env.JWT_SECRET ||= "test-only-secret-that-is-at-least-32-characters";
 process.env.DATABASE_URL ||= "postgresql://test:test@127.0.0.1:5432/test";
 
-const [{ createCsrfToken, isValidCsrfToken, tokensMatch }, { mapAiError }, { isSupportedUpload }, { credentialsSchema }, { createMessageSchema }, { PresenceRegistry }, { searchUsersSchema, updateProfileSchema, createContactSchema }, { updateGroupProfileSchema }] =
+const [{ createCsrfToken, isValidCsrfToken, tokensMatch }, { mapAiError }, { isSupportedUpload }, { credentialsSchema }, { createMessageSchema }, { PresenceRegistry }, { searchUsersSchema, updateProfileSchema, createContactSchema }, { updateGroupProfileSchema }, { createCloudinaryReference, parseCloudinaryReference, cloudinaryReferenceForAvatar }] =
   await Promise.all([
     import("../utils/csrf.js"),
     import("../services/ai.service.js"),
@@ -15,6 +15,7 @@ const [{ createCsrfToken, isValidCsrfToken, tokensMatch }, { mapAiError }, { isS
     import("../socket/presence.js"),
     import("../controllers/users.controller.js"),
     import("../services/sessions.service.js"),
+    import("../services/cloudinary-storage.service.js"),
   ]);
 
 test("user search requires a trimmed query of at least two characters", () => {
@@ -158,6 +159,21 @@ test("upload signature validation permits supported image headers and rejects sp
     }),
     true,
   );
+});
+
+test("Cloudinary references validate provider IDs and map avatar routes", () => {
+  const storedName = createCloudinaryReference("raw", "chat-files/1234.pdf");
+  assert.deepEqual(parseCloudinaryReference(storedName), {
+    resourceType: "raw",
+    publicId: "chat-files/1234.pdf",
+  });
+  assert.equal(parseCloudinaryReference("cloudinary:image:../secret"), null);
+  assert.equal(parseCloudinaryReference("cloudinary:other:asset"), null);
+  assert.equal(
+    cloudinaryReferenceForAvatar("avatars", "cloud-123e4567-e89b-12d3-a456-426614174000.png"),
+    "cloudinary:image:avatars/123e4567-e89b-12d3-a456-426614174000",
+  );
+  assert.equal(cloudinaryReferenceForAvatar("avatars", "untrusted.png"), null);
 });
 
 test("Gemini quota errors map to a friendly stable error without provider details", () => {

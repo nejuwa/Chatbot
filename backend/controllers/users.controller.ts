@@ -1,13 +1,18 @@
 import type { RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import multer from "multer";
 import { env } from "../config/env.js";
-import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
+import { removeStoredFile, readStoredFile } from "../services/files.service.js";
+import {
+  cloudinaryReferenceForAvatar,
+  isCloudinaryConfigured,
+  uploadCloudinaryAsset,
+} from "../services/cloudinary-storage.service.js";
 
 export const searchUsersSchema = z.object({
   query: z.string().trim().min(2).max(100),
@@ -311,7 +316,8 @@ export const uploadProfileAvatar: RequestHandler = async (req, res) => {
     return;
   }
   const file = req.file;
-  if (!file || !avatarTypes.has(file.mimetype) || !validAvatar(file)) {
+  const extension = file && avatarTypes.get(file.mimetype);
+  if (!file || !extension || !validAvatar(file)) {
     res.status(400).json({
       error: { code: "INVALID_AVATAR", message: "Choose a valid JPEG, PNG, or WebP image." },
     });
@@ -326,10 +332,23 @@ export const uploadProfileAvatar: RequestHandler = async (req, res) => {
     return;
   }
 
-  const filename = `${randomUUID()}${avatarTypes.get(file.mimetype)}`;
+  const id = randomUUID();
+  let filename = `${id}${extension}`;
+  let storedName = path.join("avatars", filename);
   const directory = path.resolve(env.UPLOAD_DIR, "avatars");
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, filename), file.buffer, { flag: "wx" });
+  if (isCloudinaryConfigured()) {
+    const storedAsset = await uploadCloudinaryAsset(file.buffer, {
+      folder: "avatars",
+      mimeType: file.mimetype,
+      extension,
+      publicId: id,
+    });
+    filename = `cloud-${id}${extension}`;
+    storedName = storedAsset.storedName;
+  } else {
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, filename), file.buffer, { flag: "wx" });
+  }
   const avatarUrl = `/api/users/${encodeURIComponent(req.userId)}/avatar/${filename}`;
   try {
     const user = await prisma.user.update({
@@ -339,21 +358,20 @@ export const uploadProfileAvatar: RequestHandler = async (req, res) => {
     });
     if (previous.avatarUrl?.startsWith(`/api/users/${req.userId}/avatar/`)) {
       const oldName = previous.avatarUrl.split("/").at(-1);
-      if (oldName && /^[0-9a-f-]+\.(jpg|png|webp)$/i.test(oldName)) {
-        try {
-          await unlink(path.join(directory, oldName));
-        } catch (error) {
-          logger.error({ err: error, filename: oldName }, "Failed to remove replaced profile photo");
-        }
+      if (
+        oldName &&
+        (/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(oldName) ||
+          cloudinaryReferenceForAvatar("avatars", oldName))
+      ) {
+        const cloudReference = cloudinaryReferenceForAvatar("avatars", oldName);
+        await removeStoredFile(
+          cloudReference ?? path.join("avatars", oldName),
+        );
       }
     }
     res.status(200).json({ data: user });
   } catch (error) {
-    try {
-      await unlink(path.join(directory, filename));
-    } catch (cleanupError) {
-      logger.error({ err: cleanupError, filename }, "Failed to clean up profile photo after update failure");
-    }
+    await removeStoredFile(storedName);
     throw error;
   }
 };
@@ -365,7 +383,9 @@ export const getProfileAvatar: RequestHandler = async (req, res) => {
   }
   const userId = typeof req.params.id === "string" ? req.params.id : "";
   const filename = typeof req.params.filename === "string" ? req.params.filename : "";
-  if (!/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename)) {
+  const cloudReference = cloudinaryReferenceForAvatar("avatars", filename);
+  const isLocalAvatar = /^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename);
+  if (!cloudReference && !isLocalAvatar) {
     res.status(404).end();
     return;
   }
@@ -378,8 +398,16 @@ export const getProfileAvatar: RequestHandler = async (req, res) => {
     return;
   }
   const extension = path.extname(filename);
+  const mimeType = extension === ".jpg"
+    ? "image/jpeg"
+    : extension === ".png"
+      ? "image/png"
+      : "image/webp";
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Cache-Control", "private, max-age=3600");
-  res.type(extension === ".jpg" ? "image/jpeg" : extension === ".png" ? "image/png" : "image/webp");
-  res.send(await readFile(path.join(path.resolve(env.UPLOAD_DIR, "avatars"), filename)));
+  res.type(mimeType);
+  res.send(await readStoredFile(
+    cloudReference ?? path.join("avatars", filename),
+    mimeType,
+  ));
 };

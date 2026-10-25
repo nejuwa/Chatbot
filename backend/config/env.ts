@@ -26,6 +26,9 @@ const envSchema = z.object({
     .default("http://localhost:3000"),
   JWT_SECRET: z.string().min(32),
   DATABASE_URL: z.string().url(),
+  CLOUDINARY_CLOUD_NAME: optionalEnvValue,
+  CLOUDINARY_API_KEY: optionalEnvValue,
+  CLOUDINARY_API_SECRET: optionalEnvValue,
   AUTH_REFRESH_COOKIE_NAME: z.string().default("refresh_token"),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   AUTH_ACCESS_TOKEN_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
@@ -82,6 +85,27 @@ const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: "SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM must be configured together",
       path: ["SMTP_HOST"],
+    });
+  }
+
+  const cloudinaryValues = [
+    config.CLOUDINARY_CLOUD_NAME,
+    config.CLOUDINARY_API_KEY,
+    config.CLOUDINARY_API_SECRET,
+  ];
+  const configuredCloudinaryValues = cloudinaryValues.filter(Boolean).length;
+  if (configuredCloudinaryValues !== 0 && configuredCloudinaryValues !== cloudinaryValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must be configured together",
+      path: ["CLOUDINARY_CLOUD_NAME"],
+    });
+  }
+  if (config.NODE_ENV === "production" && configuredCloudinaryValues !== cloudinaryValues.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Cloudinary credentials are required in production for persistent media storage",
+      path: ["CLOUDINARY_CLOUD_NAME"],
     });
   }
 

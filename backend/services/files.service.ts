@@ -5,6 +5,13 @@ import path from "node:path";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
+import {
+  deleteCloudinaryAsset,
+  isCloudinaryConfigured,
+  parseCloudinaryReference,
+  readCloudinaryAsset,
+  uploadCloudinaryAsset,
+} from "./cloudinary-storage.service.js";
 import { broadcastSessionMessage } from "../socket/index.js";
 import { SessionServiceError } from "./service-error.js";
 
@@ -81,12 +88,25 @@ export function isSupportedUpload(file: {
 
 export async function readStoredImage(storedName: string, mimeType: string) {
   if (
-    path.basename(storedName) !== storedName ||
     !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)
   ) {
     fail("IMAGE_UNAVAILABLE", 422, "The uploaded image cannot be analyzed");
   }
-  return readFile(path.join(uploadDirectory, storedName));
+  return readStoredFile(storedName, mimeType);
+}
+
+export async function readStoredFile(storedName: string, mimeType: string) {
+  if (storedName.startsWith("cloudinary:")) {
+    if (!parseCloudinaryReference(storedName)) {
+      fail("FILE_NOT_FOUND", 404, "File not found");
+    }
+    return readCloudinaryAsset(storedName, mimeType);
+  }
+  const storedPath = path.resolve(uploadDirectory, storedName);
+  if (!storedPath.startsWith(`${uploadDirectory}${path.sep}`)) {
+    fail("FILE_NOT_FOUND", 404, "File not found");
+  }
+  return readFile(storedPath);
 }
 
 export async function createSessionFileMessage(
@@ -118,7 +138,7 @@ export async function createSessionFileMessage(
   }
 
   const fileId = randomUUID();
-  const storedName = `${randomUUID()}${extension}`;
+  let storedName = `${randomUUID()}${extension}`;
   const originalName = safeOriginalName(file.originalname);
   const messageType = file.mimetype.startsWith("image/")
     ? MessageType.IMAGE
@@ -129,11 +149,20 @@ export async function createSessionFileMessage(
         : MessageType.FILE;
   const content = `/api/sessions/${encodeURIComponent(sessionId)}/files/${fileId}`;
 
-  await mkdir(uploadDirectory, { recursive: true });
-  const storedPath = path.join(uploadDirectory, storedName);
-  await writeFile(storedPath, file.buffer, { flag: "wx" });
-
   try {
+    if (isCloudinaryConfigured()) {
+      const storedAsset = await uploadCloudinaryAsset(file.buffer, {
+        folder: "chat-files",
+        mimeType: file.mimetype,
+        extension,
+      });
+      storedName = storedAsset.storedName;
+    } else {
+      await mkdir(uploadDirectory, { recursive: true });
+      const storedPath = path.join(uploadDirectory, storedName);
+      await writeFile(storedPath, file.buffer, { flag: "wx" });
+    }
+
     const message = await prisma.$transaction(async (transaction) => {
       const currentMembership = await transaction.chatSessionUser.findUnique({
         where: { sessionId_userId: { sessionId, userId } },
@@ -178,14 +207,7 @@ export async function createSessionFileMessage(
     broadcastSessionMessage(message);
     return message;
   } catch (error) {
-    try {
-      await unlink(storedPath);
-    } catch (cleanupError) {
-      logger.error(
-        { err: cleanupError, storedName },
-        "Failed to remove upload after database error",
-      );
-    }
+    await removeStoredFile(storedName);
     throw error;
   }
 }
@@ -224,13 +246,29 @@ export async function getSessionFile(
   }
   return {
     ...file,
-    path: path.join(uploadDirectory, file.storedName),
+    buffer: await readStoredFile(file.storedName, file.mimeType),
   };
 }
 
 export async function removeStoredFile(storedName: string) {
+  if (storedName.startsWith("cloudinary:")) {
+    try {
+      if (!parseCloudinaryReference(storedName)) {
+        fail("FILE_NOT_FOUND", 404, "Cloudinary asset reference is invalid");
+      }
+      await deleteCloudinaryAsset(storedName);
+    } catch (error) {
+      logger.error({ err: error, storedName }, "Failed to remove Cloudinary upload");
+    }
+    return;
+  }
+
   try {
-    await unlink(path.join(uploadDirectory, storedName));
+    const storedPath = path.resolve(uploadDirectory, storedName);
+    if (!storedPath.startsWith(`${uploadDirectory}${path.sep}`)) {
+      fail("FILE_NOT_FOUND", 404, "Stored file path is invalid");
+    }
+    await unlink(storedPath);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return;

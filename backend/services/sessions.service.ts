@@ -5,14 +5,19 @@ import {
   UserStatus,
 } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { AI_USER_DISPLAY_NAME, AI_USER_EMAIL } from "../auth/constants.js";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
-import { removeStoredFile } from "./files.service.js";
+import { readStoredFile, removeStoredFile } from "./files.service.js";
+import {
+  cloudinaryReferenceForAvatar,
+  isCloudinaryConfigured,
+  uploadCloudinaryAsset,
+} from "./cloudinary-storage.service.js";
 import { SessionServiceError } from "./service-error.js";
 
 export { SessionServiceError } from "./service-error.js";
@@ -493,12 +498,25 @@ export async function uploadGroupAvatar(
   );
 
   const directory = path.resolve(env.UPLOAD_DIR, "group-avatars");
-  const filename = `${randomUUID()}${extension}`;
-  await mkdir(directory, { recursive: true });
-  const storedPath = path.join(directory, filename);
-  await writeFile(storedPath, file.buffer, { flag: "wx" });
+  const id = randomUUID();
+  let filename = `${id}${extension}`;
+  let storedName = path.join("group-avatars", filename);
 
   try {
+    if (isCloudinaryConfigured()) {
+      const storedAsset = await uploadCloudinaryAsset(file.buffer, {
+        folder: "group-avatars",
+        mimeType: file.mimetype,
+        extension,
+        publicId: id,
+      });
+      filename = `cloud-${id}${extension}`;
+      storedName = storedAsset.storedName;
+    } else {
+      await mkdir(directory, { recursive: true });
+      await writeFile(path.join(directory, filename), file.buffer, { flag: "wx" });
+    }
+
     const { updated, previousAvatarUrl } = await prisma.$transaction(async (transaction) => {
       const participant = await requireGroupOwner(transaction, sessionId, userId);
       const updatedSession = await transaction.chatSession.update({
@@ -512,21 +530,20 @@ export async function uploadGroupAvatar(
       previousAvatarUrl?.startsWith(`/api/sessions/${encodeURIComponent(sessionId)}/avatar/`)
     ) {
       const previousFilename = previousAvatarUrl.split("/").at(-1);
-      if (previousFilename && /^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(previousFilename)) {
-        try {
-          await unlink(path.join(directory, previousFilename));
-        } catch (error) {
-          logger.error({ err: error, filename: previousFilename }, "Failed to remove replaced group photo");
-        }
+      const cloudReference = previousFilename &&
+        cloudinaryReferenceForAvatar("group-avatars", previousFilename);
+      if (
+        previousFilename &&
+        (/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(previousFilename) || cloudReference)
+      ) {
+        await removeStoredFile(
+          cloudReference ?? path.join("group-avatars", previousFilename),
+        );
       }
     }
     return updated;
   } catch (error) {
-    try {
-      await unlink(storedPath);
-    } catch (cleanupError) {
-      logger.error({ err: cleanupError, filename }, "Failed to clean up group photo after update failure");
-    }
+    await removeStoredFile(storedName);
     throw error;
   }
 }
@@ -536,7 +553,9 @@ export async function getGroupAvatar(
   sessionId: string,
   filename: string,
 ) {
-  if (!/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename)) {
+  const cloudReference = cloudinaryReferenceForAvatar("group-avatars", filename);
+  const isLocalAvatar = /^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename);
+  if (!cloudReference && !isLocalAvatar) {
     throwNotFound();
   }
   const participant = await prisma.chatSessionUser.findUnique({
@@ -567,7 +586,10 @@ export async function getGroupAvatar(
       ? "image/png"
       : "image/webp";
   return {
-    buffer: await readFile(path.join(path.resolve(env.UPLOAD_DIR, "group-avatars"), filename)),
+    buffer: await readStoredFile(
+      cloudReference ?? path.join("group-avatars", filename),
+      mimeType,
+    ),
     mimeType,
   };
 }
@@ -597,15 +619,14 @@ export async function deleteSession(userId: string, sessionId: string) {
   if (
     avatarUrl?.startsWith(`/api/sessions/${encodeURIComponent(sessionId)}/avatar/`) &&
     filename &&
-    /^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename)
+    (/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename) ||
+      cloudinaryReferenceForAvatar("group-avatars", filename))
   ) {
-    try {
-      await unlink(path.join(path.resolve(env.UPLOAD_DIR, "group-avatars"), filename));
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
-        logger.error({ err: error, filename }, "Failed to remove deleted group photo");
-      }
-    }
+    const cloudReference = cloudinaryReferenceForAvatar("group-avatars", filename);
+    await removeStoredFile(
+      cloudReference ??
+      path.join("group-avatars", filename),
+    );
   }
 }
 

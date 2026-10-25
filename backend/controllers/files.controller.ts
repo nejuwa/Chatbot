@@ -59,16 +59,7 @@ export const downloadSessionFile: RequestHandler<
     );
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Cache-Control", "private, no-store");
-    res.type(file.mimeType);
-    res.download(file.path, file.originalName, (error) => {
-      if (error) {
-        if (res.headersSent) {
-          next(error);
-          return;
-        }
-        next(error);
-      }
-    });
+    res.type(file.mimeType).attachment(file.originalName).send(file.buffer);
   } catch (error) {
     if (error instanceof SessionServiceError) {
       res.status(error.statusCode).json({

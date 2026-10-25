@@ -18,11 +18,11 @@ Phone/video calls are currently UI previews; call signaling and media transport 
 - `frontend/` — Next.js App Router, React, TypeScript, and Tailwind CSS
 - `backend/` — Express API, Socket.IO server, Prisma schema, and migrations
 - `backend/prisma/` — PostgreSQL schema and migration history
-- `backend/uploads/` — Local upload storage (created at runtime; preserve its contents)
+- `backend/uploads/` — Local-development upload storage; production uploads use Cloudinary
 
 ## Run locally
 
-Requirements: Node.js 20+, npm, and PostgreSQL.
+Requirements: Node.js 22.12 or later (under 25), npm, and PostgreSQL.
 
 ### 1. Configure and start the backend
 
@@ -34,7 +34,7 @@ npm install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Set `DATABASE_URL` to your PostgreSQL database and `JWT_SECRET` to a random secret of at least 32 characters in `backend/.env`. Add `GOOGLE_API_KEY` to enable AI responses. Google OAuth and SMTP settings are optional; see the comments and variable names in `backend/.env.example`.
+Set `DATABASE_URL` to your PostgreSQL database and `JWT_SECRET` to a random secret of at least 32 characters in `backend/.env`. Add `GOOGLE_API_KEY` to enable AI responses. Google OAuth and SMTP settings are optional; see the variable names in `backend/.env.example`. Local development can use the local upload directory; set all three `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` values to test Cloudinary storage. They are required in production.
 
 Then generate the Prisma client, apply migrations, and start the API:
 
@@ -87,4 +87,4 @@ Compose starts PostgreSQL and the backend. The frontend remains a separate app; 
 
 ## Security and configuration
 
-Do not commit `.env`, `.env.local`, API keys, passwords, tokens, or populated test data. Browser authentication uses HttpOnly cookies and CSRF protection. Back up the PostgreSQL database and uploaded files for deployments. Gemini usage is subject to Google's quotas and data policies.
+Do not commit `.env`, `.env.local`, API keys, passwords, tokens, or populated test data. Browser authentication uses HttpOnly cookies and CSRF protection. Production media is stored in Cloudinary as authenticated assets and is delivered only through authorized API routes. Back up the PostgreSQL database and configure Cloudinary backups/retention. Gemini usage is subject to Google's quotas and data policies.
