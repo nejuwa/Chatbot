@@ -22,7 +22,7 @@ Phone/video calls are currently UI previews; call signaling and media transport 
 
 ## Run locally
 
-Requirements: Node.js 22.12 or later (under 25), npm, and PostgreSQL.
+Requirements: Node.js 22.12 or later (under 25), npm, and a PostgreSQL database. The instructions below use Neon; a local PostgreSQL server also works.
 
 ### 1. Configure and start the backend
 
@@ -34,15 +34,28 @@ npm install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Set `DATABASE_URL` to your PostgreSQL database and `JWT_SECRET` to a random secret of at least 32 characters in `backend/.env`. Add `GOOGLE_API_KEY` to enable AI responses. Google OAuth and SMTP settings are optional; see the variable names in `backend/.env.example`. Local development can use the local upload directory; set all three `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` values to test Cloudinary storage. They are required in production.
+#### Configure Neon PostgreSQL
 
-Then generate the Prisma client, apply migrations, and start the API:
+1. Create a project in [Neon](https://neon.tech/) and choose a region close to your backend hosting region.
+2. In the Neon Console, open **Connect** and copy both connection strings:
+   - Use the **pooled** URL (the hostname contains `-pooler`) for `DATABASE_URL`, which Prisma Client uses at runtime.
+   - Use the **direct/unpooled** URL (no `-pooler` in the hostname) for `DATABASE_URL_UNPOOLED`, which Prisma uses for migrations.
+   - Keep `sslmode=require` on both URLs. Add `connect_timeout=15` to `DATABASE_URL` so Prisma allows time for an idle Neon compute to wake (for example, `...?sslmode=require&connect_timeout=15`).
+3. Put both URLs in `backend/.env`. Keep them secret: do not commit `.env`, put either URL in the frontend, or share them publicly.
+
+Prisma Client uses `DATABASE_URL`, while the `directUrl` in `backend/prisma/schema.prisma` directs Prisma migration commands to `DATABASE_URL_UNPOOLED`.
+
+Set `JWT_SECRET` to a random secret of at least 32 characters in `backend/.env`. Add `GOOGLE_API_KEY` to enable AI responses. Google OAuth and SMTP settings are optional; see the variable names in `backend/.env.example`. Local development can use the local upload directory; set all three `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` values to test Cloudinary storage. They are required in production.
+
+Then generate the Prisma client, apply the existing migrations to Neon, and start the API:
 
 ```powershell
 npm run prisma:generate
-npm run prisma:migrate
+npm run prisma:deploy
 npm run dev
 ```
+
+Use `npm run prisma:migrate` when developing a new schema change locally; review and commit the generated migration before deploying. `npm run prisma:deploy` applies committed migrations and is the correct command for a new or production database.
 
 The API runs at `http://localhost:4000`. Its health endpoints are `/health` and `/health/ready`.
 
@@ -73,7 +86,7 @@ npm test
 npm run build
 ```
 
-Database integration tests require `TEST_DATABASE_URL` to point to a separate, disposable PostgreSQL database with migrations applied. Do not use a database containing data you need; the test creates and deletes accounts and chat sessions.
+Database integration tests require `TEST_DATABASE_URL` to point to a separate, disposable PostgreSQL database with migrations applied. Do not use your Neon application database or any database containing data you need; the test creates and deletes accounts and chat sessions.
 
 ## Docker
 
@@ -83,7 +96,11 @@ Configure `backend/.env` with `POSTGRES_PASSWORD`, `JWT_SECRET`, and `CORS_ORIGI
 docker compose --env-file backend/.env -f backend/compose.yaml up --build
 ```
 
-Compose starts PostgreSQL and the backend. The frontend remains a separate app; run it locally or deploy it separately, and set `CORS_ORIGIN` to its deployed origin.
+Compose starts a local PostgreSQL container and the backend; it does not use Neon. The frontend remains a separate app; run it locally or deploy it separately, and set `CORS_ORIGIN` to its deployed origin.
+
+## Deploying with Neon and Render
+
+In Render, set the backend service's `DATABASE_URL` to the Neon pooled URL (with `sslmode=require` and `connect_timeout=15`) and `DATABASE_URL_UNPOOLED` to the direct URL (with `sslmode=require`). Keep the `npm run prisma:deploy` pre-deploy command so committed Prisma migrations use the direct URL before the service starts. Set all other required backend variables in Render's Environment settings; never commit their values.
 
 ## Security and configuration
 
