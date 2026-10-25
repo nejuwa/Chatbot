@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+enum SessionType {
+  DIRECT
+  GROUP
+  AI
+}
+
+enum ParticipantRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  VOICE
+  VIDEO
+  SYSTEM
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum AuthTokenType {
+  REFRESH
+  PASSWORD_RESET
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  username     String?    @unique
+  bio          String?    @db.VarChar(500)
+  passwordHash String?
+  displayName  String?
+  avatarUrl    String?
+  googleId     String?    @unique
+  status       UserStatus @default(OFFLINE)
+  lastSeen     DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sessions         ChatSessionUser[]
+  sentMessages     Message[]         @relation("SentMessages")
+  receivedMessages Message[]         @relation("ReceivedMessages")
+  sessionsOwned    ChatSession[]     @relation("SessionOwner")
+  authTokens       AuthToken[]
+  uploadedFiles    ChatFile[]        @relation("FileUploader")
+  messageReads     MessageRead[]
+  hiddenMessages   MessageHidden[]
+  savedMessages   SavedMessage[]
+  contacts       UserContact[] @relation("ContactOwner")
+  addedAsContact UserContact[] @relation("ContactTarget")
+
+  @@index([status])
+}
+
+model ChatSession {
+  id            String      @id @default(cuid())
+  type          SessionType @default(GROUP)
+  title         String      @default("New chat")
+  description   String?
+  avatarUrl     String?
+  ownerId       String
+  owner         User        @relation("SessionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  lastMessageAt DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  users    ChatSessionUser[]
+  messages Message[]
+  files    ChatFile[]
+
+  @@index([ownerId, updatedAt])
+  @@index([lastMessageAt])
+}
+
+model ChatSessionUser {
+  id         String          @id @default(cuid())
+  sessionId  String
+  userId     String
+  role       ParticipantRole @default(MEMBER)
+  joinedAt   DateTime        @default(now())
+  lastReadAt DateTime?
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id               String        @id @default(cuid())
+  sessionId        String
+  session          ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderId         String?
+  sender           User?         @relation("SentMessages", fields: [senderId], references: [id], onDelete: SetNull)
+  receiverId       String?
+  receiver         User?         @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: SetNull)
+  role             MessageRole   @default(USER)
+  type             MessageType   @default(TEXT)
+  content          String
+  isRead           Boolean       @default(false)
+  readAt           DateTime?
+  promptTokens     Int?
+  completionTokens Int?
+  createdAt        DateTime      @default(now())
+  file             ChatFile?
+  readReceipts     MessageRead[]
+  hiddenBy         MessageHidden[]
+  savedBy          SavedMessage[]
+
+  @@index([sessionId, createdAt])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model AuthToken {
+  id         String        @id @default(cuid())
+  tokenHash  String        @unique
+  type       AuthTokenType
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@index([userId, type, expiresAt])
+}
+
+model ChatFile {
+  id           String      @id @default(cuid())
+  sessionId    String
+  session      ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  uploaderId   String
+  uploader     User        @relation("FileUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+  messageId    String?     @unique
+  message      Message?    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  storedName   String      @unique
+  originalName String
+  mimeType     String
+  size         Int
+  createdAt    DateTime    @default(now())
+
+  @@index([sessionId, createdAt])
+}
+
+model MessageRead {
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId, readAt])
+}
+
+model MessageHidden {
+  messageId String
+  userId    String
+  hiddenAt  DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId, hiddenAt])
+}
+
+model SavedMessage {
+  userId    String
+  messageId String
+  savedAt   DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([userId, savedAt])
+}
+
+model UserContact {
+  ownerId   String
+  contactId String
+  createdAt DateTime @default(now())
+
+  owner   User @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  contact User @relation("ContactTarget", fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([ownerId, contactId])
+  @@index([contactId])
+}

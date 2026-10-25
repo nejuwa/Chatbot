@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: var(--app-canvas);
+  --color-surface: var(--app-surface);
+  --color-ink: var(--app-ink);
+  --color-muted: var(--app-muted);
+  --color-line: var(--app-line);
+  --color-accent: var(--app-accent);
+  --color-primary: var(--app-primary);
+  --color-primary-foreground: var(--app-primary-foreground);
+  --color-accent-hover: var(--app-accent-hover);
+  --color-accent-soft: var(--app-accent-soft);
+  --color-chat-outgoing: var(--app-chat-outgoing);
+  --color-chat-incoming: var(--app-chat-incoming);
+  --color-chat-header: var(--app-chat-header);
+  --color-danger: var(--app-danger);
+  --color-danger-soft: var(--app-danger-soft);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --radius-chat: 1.25rem;
+  --radius-chat-group: 0.5rem;
+  --breakpoint-mobile: 40rem;
+  --breakpoint-tablet: 48rem;
+  --breakpoint-desktop: 64rem;
+  --breakpoint-wide: 80rem;
+}
+
+:root {
+  color-scheme: light;
+  --app-canvas: #f3f6f8;
+  --app-surface: #ffffff;
+  --app-ink: #17212b;
+  --app-muted: #70808f;
+  --app-line: #e4e9ed;
+  --app-accent: #3390ec;
+  --app-primary: oklch(72.3% 0.219 149.579);
+  --app-primary-foreground: #17212b;
+  --app-accent-hover: #287fda;
+  --app-accent-soft: #e9f3fc;
+  --app-chat-outgoing: #d9fdd3;
+  --app-chat-incoming: #ffffff;
+  --app-chat-header: #ffffff;
+  --app-danger: #a23b35;
+  --app-danger-soft: #fbefee;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --app-canvas: #0e1621;
+  --app-surface: #17212b;
+  --app-ink: #e6eaf0;
+  --app-muted: #8b9bab;
+  --app-line: #253342;
+  --app-accent: #6ab2f2;
+  --app-accent-hover: #4b9fe8;
+  --app-accent-soft: #1b3246;
+  --app-primary: oklch(72.3% 0.219 149.579);
+  --app-primary-foreground: #17212b;
+  --app-chat-outgoing: #182533;
+  --app-chat-incoming: #212d3b;
+  --app-chat-header: #17212b;
+  --app-danger: #ff8e86;
+  --app-danger-soft: #492c31;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-canvas);
+  color: var(--app-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: #dce8de;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.chat-message-textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.chat-wallpaper {
+  background-color: var(--app-canvas);
+  background-image: url("/chat-pattern.svg");
+  background-size: 240px 240px;
+  background-attachment: fixed;
+}
