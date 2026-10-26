@@ -79,6 +79,8 @@ Run these from their respective directories:
 ```powershell
 # frontend
 npm run lint
+# Set this for a local production build; `npm run dev` defaults to localhost:4000.
+$env:BACKEND_ORIGIN = "http://localhost:4000"
 npm run build
 
 # backend
@@ -98,11 +100,20 @@ docker compose --env-file backend/.env -f backend/compose.yaml up --build
 
 Compose starts a local PostgreSQL container and the backend; it does not use Neon. The frontend remains a separate app; run it locally or deploy it separately, and set `CORS_ORIGIN` to its deployed origin.
 
-## Deploying with Neon and Render
+## Deploying with Vercel, Render, and Neon
 
-In Render, set the backend service's `DATABASE_URL` to the Neon pooled URL (with `sslmode=require` and `connect_timeout=15`) and `DATABASE_URL_UNPOOLED` to the direct URL (with `sslmode=require`). Keep the `npm run prisma:deploy` pre-deploy command so committed Prisma migrations use the direct URL before the service starts. Set all other required backend variables in Render's Environment settings; never commit their values.
+Use the Vercel project URL for the frontend and Google OAuth callback. The Next.js app proxies `/api/*` and `/socket.io/*` through its own origin to Render, so browser API calls and auth cookies stay first-party; a custom domain is not required.
 
-When using the default Vercel and Render hostnames without a custom domain, production auth and CSRF cookies use `SameSite=None; Secure` so credentialed API requests can cross site boundaries. Keep `CORS_ORIGIN` set to the exact Vercel origin; the API also requires the CSRF cookie/header token match on unsafe requests. The Google OAuth state cookie remains `SameSite=Lax`. Some browsers or privacy settings block third-party cookies; if sign-in still fails, check the browser's cookie-blocking message and use a browser configuration that allows cross-site cookies or move to a same-origin hosting setup.
+Configure the Vercel project:
+
+- Set `BACKEND_ORIGIN` to the Render backend origin only, for example `https://your-api.onrender.com` (no path or trailing slash). This is used by Next.js rewrites and is not exposed to browser JavaScript.
+- Remove `NEXT_PUBLIC_API_BASE_URL` from production Vercel settings if it was set previously. Production browser requests use relative `/api` and `/socket.io` paths.
+- Set the Vercel project's production domain as Render's `CORS_ORIGIN`.
+- Set `GOOGLE_CALLBACK_URL` in Render to `https://your-project.vercel.app/api/auth/google/callback`. Add that exact URL to the Google OAuth client's **Authorized redirect URIs**. The callback goes to Vercel first and is proxied to Render.
+- Ensure `DATABASE_URL` is Neon pooled with `sslmode=require&connect_timeout=15`, and `DATABASE_URL_UNPOOLED` is Neon direct with `sslmode=require`.
+- Set the remaining backend secrets and the three Cloudinary variables in Render's Environment settings. Never commit their values.
+
+For Render, keep the `npm run prisma:deploy` pre-deploy command so committed migrations run against Neon before the backend starts. For Vercel, set `BACKEND_ORIGIN` for Production and Preview deployments as appropriate, then redeploy. After deploying, clear cookies for the site and test email/password login, Google login, chat API calls, media, and live updates.
 
 ## Security and configuration
 

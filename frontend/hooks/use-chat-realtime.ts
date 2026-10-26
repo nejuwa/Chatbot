@@ -81,6 +81,7 @@ export function useChatRealtime(userId: string | undefined, handlers: RealtimeHa
     const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(api.baseUrl, {
       withCredentials: true,
       autoConnect: false,
+      ...(process.env.NODE_ENV === "production" ? { transports: ["polling"] } : {}),
     });
     socketRef.current = socket;
     let refreshingAuth = false;

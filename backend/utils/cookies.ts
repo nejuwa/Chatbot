@@ -3,7 +3,7 @@ import { env } from "../config/env.js";
 
 const baseCookieOptions: CookieOptions = {
   secure: env.NODE_ENV === "production",
-  sameSite: env.NODE_ENV === "production" ? "none" : "strict",
+  sameSite: "strict",
   path: "/",
 };
 

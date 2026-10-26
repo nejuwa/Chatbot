@@ -14,14 +14,9 @@ import type {
   UserSearchResult,
 } from "@/types/api";
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  (process.env.NODE_ENV === "development" ? "http://localhost:4000" : "")
-).replace(/\/+$/, "");
-
-if (!API_BASE_URL) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL must be configured for production builds.");
-}
+const API_BASE_URL = process.env.NODE_ENV === "development"
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "")
+  : "";
 
 export class ApiError extends Error {
   readonly status: number;
