@@ -102,6 +102,8 @@ Compose starts a local PostgreSQL container and the backend; it does not use Neo
 
 In Render, set the backend service's `DATABASE_URL` to the Neon pooled URL (with `sslmode=require` and `connect_timeout=15`) and `DATABASE_URL_UNPOOLED` to the direct URL (with `sslmode=require`). Keep the `npm run prisma:deploy` pre-deploy command so committed Prisma migrations use the direct URL before the service starts. Set all other required backend variables in Render's Environment settings; never commit their values.
 
+When using the default Vercel and Render hostnames without a custom domain, production auth and CSRF cookies use `SameSite=None; Secure` so credentialed API requests can cross site boundaries. Keep `CORS_ORIGIN` set to the exact Vercel origin; the API also requires the CSRF cookie/header token match on unsafe requests. The Google OAuth state cookie remains `SameSite=Lax`. Some browsers or privacy settings block third-party cookies; if sign-in still fails, check the browser's cookie-blocking message and use a browser configuration that allows cross-site cookies or move to a same-origin hosting setup.
+
 ## Security and configuration
 
 Do not commit `.env`, `.env.local`, API keys, passwords, tokens, or populated test data. Browser authentication uses HttpOnly cookies and CSRF protection. Production media is stored in Cloudinary as authenticated assets and is delivered only through authorized API routes. Back up the PostgreSQL database and configure Cloudinary backups/retention. Gemini usage is subject to Google's quotas and data policies.
