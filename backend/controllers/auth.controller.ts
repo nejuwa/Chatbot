@@ -386,6 +386,13 @@ export const requestPasswordReset: RequestHandler<
       },
       "Failed to send password reset email",
     );
+    res.status(503).json({
+      error: {
+        code: "EMAIL_DELIVERY_FAILED",
+        message: "Unable to send the reset email right now. Please try again later.",
+      },
+    });
+    return;
   }
   res.status(200).json(genericResponse);
 };

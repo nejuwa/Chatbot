@@ -14,14 +14,9 @@ import type {
   UserSearchResult,
 } from "@/types/api";
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  (process.env.NODE_ENV === "development" ? "http://localhost:4000" : "")
-).replace(/\/+$/, "");
-
-if (!API_BASE_URL) {
-  throw new Error("NEXT_PUBLIC_API_BASE_URL must be configured for production builds.");
-}
+const API_BASE_URL = process.env.NODE_ENV === "development"
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "")
+  : "";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -104,11 +99,15 @@ async function refreshSession(): Promise<boolean> {
         headers: { "x-csrf-token": csrfToken ?? "" },
         cache: "no-store",
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        csrfToken = undefined;
+        return false;
+      }
       const body = (await response.json()) as { csrfToken: string };
       csrfToken = body.csrfToken;
       return true;
     } catch {
+      csrfToken = undefined;
       return false;
     } finally {
       refreshInFlight = undefined;
@@ -217,7 +216,13 @@ export const api = {
       csrfToken = result.csrfToken;
       return result.data;
     },
-    logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+    logout: async () => {
+      try {
+        await request<void>("/api/auth/logout", { method: "POST" });
+      } finally {
+        csrfToken = undefined;
+      }
+    },
     requestPasswordReset: (email: string) =>
       request<{ data: { message: string } }>("/api/auth/password/forgot", {
         method: "POST",

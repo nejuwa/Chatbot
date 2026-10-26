@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Ellipsis, Pencil, Trash2, UsersRound, UserRound, Eraser, Phone } from "lucide-react";
+import { Menu, Ellipsis, Pencil, Trash2, UsersRound, UserRound, Eraser, Phone, LogOut, Sparkles } from "lucide-react";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ChatWindow } from "@/components/chat/chat-window";
 import { MessageInput } from "@/components/chat/message-input";
@@ -53,6 +53,7 @@ export function ChatWorkspace() {
   const [streamingText, setStreamingText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileListOpen, setMobileListOpen] = useState(false);
   const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
   const [chatSection, setChatSection] = useState<ChatSection>("ai");
   const [profileView, setProfileView] = useState<"contact" | "mine" | "saved" | null>(null);
@@ -761,7 +762,7 @@ export function ChatWorkspace() {
   }
 
   return (
-    <main className="relative isolate flex h-dvh min-h-0 flex-row overflow-hidden bg-canvas text-ink">
+    <main className="relative isolate flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-canvas text-ink tablet:flex-row">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 chat-wallpaper" />
       <MainNavigation
         user={user}
@@ -772,7 +773,16 @@ export function ChatWorkspace() {
         isMainMenuOpen={isMainMenuOpen}
         onMainMenuOpenChange={setIsMainMenuOpen}
         onSectionChange={setChatSection}
+        onMobileSectionSelect={(section) => {
+          setChatSection(section);
+          setMobileMenuOpen(false);
+          setMobileListOpen(true);
+        }}
         onThemeChange={setDarkMode}
+        onMobileChats={() => {
+          setMobileListOpen(false);
+          setMobileMenuOpen(true);
+        }}
         onNewGroup={() => {
           setCreateSessionType("GROUP");
           setSessionDialogError(null);
@@ -793,7 +803,11 @@ export function ChatWorkspace() {
         user={user}
         loading={loadingSessions}
         mobileMenuOpen={mobileMenuOpen}
-        onMobileMenuOpenChange={setMobileMenuOpen}
+        mobileListOpen={mobileListOpen}
+        onMobileMenuOpenChange={(open) => {
+          setMobileMenuOpen(open);
+          if (!open) setMobileListOpen(false);
+        }}
         onNewChat={createChat}
         onNewDirect={() => {
           setCreateSessionType("DIRECT");
@@ -804,6 +818,7 @@ export function ChatWorkspace() {
         onCreateGroup={createGroupFromSidebar}
         onSelect={(sessionId) => {
           setActiveSessionId(sessionId);
+          setMobileListOpen(false);
           const selected = sessions.find((session) => session.id === sessionId);
           if (selected) {
             setChatSection(
@@ -814,18 +829,17 @@ export function ChatWorkspace() {
         onDeleteSession={deleteSession}
         onLoadMore={loadMoreSessions}
       />
-      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <section className={`${mobileListOpen ? "hidden tablet:flex" : "flex"} relative min-h-0 min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] tablet:pb-0`}>
         <header className="z-10 flex h-16 shrink-0 items-center gap-3 border-b border-line bg-chat-header px-3 text-ink tablet:px-6">
           <Button
             type="button"
             variant="quiet"
             className="min-h-10 px-2 text-ink hover:bg-canvas tablet:hidden"
-            aria-label="Open conversations"
-            aria-expanded={mobileMenuOpen}
-            aria-controls="chat-conversation-drawer"
-            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label="Open main menu"
+            aria-expanded={isMainMenuOpen}
+            onClick={() => setIsMainMenuOpen(true)}
           >
-            <ArrowLeft aria-hidden="true" className="size-5" />
+            <Menu aria-hidden="true" className="size-5" />
           </Button>
           <button
             type="button"
@@ -938,74 +952,6 @@ export function ChatWorkspace() {
               </button>
             )}
           </div>
-          {!showRenameInput && activeSession && (
-            <>
-              <Button
-                type="button"
-                variant="quiet"
-                className="min-h-10 px-2 text-ink hover:bg-canvas"
-                aria-label="Start call"
-                title="Call"
-                onClick={() => setCallModalOpen(true)}
-              >
-                <Phone aria-hidden="true" className="size-5" />
-              </Button>
-              {activeSession.type !== "AI" && (
-                <Button
-                  type="button"
-                  variant="quiet"
-                  className="min-h-10 px-2 text-ink hover:bg-canvas"
-                  aria-label="Manage participants"
-                  onClick={() => {
-                    setSessionDialogError(null);
-                    setSessionDialogMode("participants");
-                  }}
-                >
-                    <UsersRound aria-hidden="true" className="size-5" />
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="quiet"
-                className="min-h-10 px-2 text-ink hover:bg-canvas"
-                aria-label="Rename conversation"
-                onClick={startRename}
-              >
-                <Pencil aria-hidden="true" className="size-4" />
-              </Button>
-              {activeSession.type !== "AI" && !activeSession.users.some((u) => u.user.email === "ai-assistant@system.invalid") && (
-                <Button
-                  type="button"
-                  variant="quiet"
-                  className="min-h-10 px-2 text-ink hover:bg-canvas"
-                  aria-label="Add AI to conversation"
-                  onClick={() => void addAiToSession()}
-                  disabled={addingAi}
-                >
-                  {addingAi ? (
-                    <span className="text-xs">Adding...</span>
-                  ) : (
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                </Button>
-              )}
-              {activeSession.type !== "AI" && (
-                <Button
-                  type="button"
-                  variant="quiet"
-                  className="min-h-10 px-2 text-ink hover:bg-canvas"
-                  aria-label="Leave conversation"
-                  onClick={() => void leaveSession()}
-                >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </Button>
-              )}
-            </>
-          )}
           <div className="relative">
             <Button
               type="button"
@@ -1018,7 +964,77 @@ export function ChatWorkspace() {
               <Ellipsis aria-hidden="true" className="size-5" />
             </Button>
             {chatActionsOpen && (
-              <div className="absolute right-0 top-12 z-30 w-48 rounded-lg border border-line bg-surface p-1.5 text-ink shadow-lg">
+              <div className="absolute right-0 top-12 z-30 max-h-[min(70dvh,32rem)] w-60 overflow-y-auto rounded-lg border border-line bg-surface p-1.5 text-ink shadow-lg">
+                {!showRenameInput && activeSession && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatActionsOpen(false);
+                        setCallModalOpen(true);
+                      }}
+                      className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-canvas"
+                    >
+                      <Phone aria-hidden="true" className="size-4" />
+                      Call
+                    </button>
+                    {activeSession.type !== "AI" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatActionsOpen(false);
+                          setSessionDialogError(null);
+                          setSessionDialogMode("participants");
+                        }}
+                        className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-canvas"
+                      >
+                        <UsersRound aria-hidden="true" className="size-4" />
+                        Manage participants
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatActionsOpen(false);
+                        startRename();
+                      }}
+                      className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-canvas"
+                    >
+                      <Pencil aria-hidden="true" className="size-4" />
+                      Rename conversation
+                    </button>
+                    {activeSession.type !== "AI" && !activeSession.users.some((participant) => participant.user.email === "ai-assistant@system.invalid") && (
+                      <button
+                        type="button"
+                        disabled={addingAi}
+                        onClick={() => {
+                          setChatActionsOpen(false);
+                          void addAiToSession();
+                        }}
+                        className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-canvas disabled:opacity-50"
+                      >
+                        <Sparkles aria-hidden="true" className="size-4" />
+                        {addingAi ? "Adding AI…" : "Add AI to conversation"}
+                      </button>
+                    )}
+                    {activeSession.type !== "AI" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatActionsOpen(false);
+                          void leaveSession().catch((cause: unknown) => {
+                            setError(cause instanceof Error ? cause.message : "Could not leave conversation.");
+                          });
+                        }}
+                        className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-canvas"
+                      >
+                        <LogOut aria-hidden="true" className="size-4" />
+                        Leave conversation
+                      </button>
+                    )}
+                    <div className="my-1 border-t border-line" />
+                  </>
+                )}
                 {activeSession && (
                   <button
                     type="button"

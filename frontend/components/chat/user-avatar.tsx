@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import type { User } from "@/types/api";
 import { userDisplayName } from "@/lib/user-display";
-import { api } from "@/lib/api";
 
 function safeAvatarUrl(url: string | null): string | null {
   if (!url) return null;
+  if (url.startsWith("/")) return url;
   try {
-    const parsed = new URL(url.startsWith("/") ? `${api.baseUrl}${url}` : url);
+    const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
     return parsed.toString();
   } catch {

@@ -136,7 +136,7 @@ const envSchema = z.object({
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "GOOGLE_CALLBACK_URL must use the deployed backend in production",
+      message: "GOOGLE_CALLBACK_URL must use a deployed HTTPS URL in production",
       path: ["GOOGLE_CALLBACK_URL"],
     });
   }
