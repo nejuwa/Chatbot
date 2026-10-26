@@ -33,7 +33,9 @@ export function MainNavigation({
   isMainMenuOpen,
   onMainMenuOpenChange,
   onSectionChange,
+  onMobileSectionSelect,
   onThemeChange,
+  onMobileChats,
   onNewGroup,
   onLogout,
   onMyProfile,
@@ -49,7 +51,9 @@ export function MainNavigation({
   isMainMenuOpen: boolean;
   onMainMenuOpenChange: (open: boolean) => void;
   onSectionChange: (section: ChatSection) => void;
+  onMobileSectionSelect: (section: ChatSection) => void;
   onThemeChange: (dark: boolean) => void;
+  onMobileChats: () => void;
   onNewGroup: () => void;
   onLogout: () => void;
   onMyProfile: () => void;
@@ -152,8 +156,31 @@ export function MainNavigation({
         </div>
       </nav>
 
+      <nav
+        aria-label="Chat sections"
+        className="fixed inset-x-0 bottom-0 z-30 grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-3 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] text-ink shadow-[0_-4px_16px_rgb(0_0_0/0.06)] backdrop-blur tablet:hidden"
+      >
+        {sections.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              onMobileSectionSelect(id);
+            }}
+            aria-label={label}
+            aria-current={section === id ? "page" : undefined}
+            className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] focus-visible:outline-2 focus-visible:outline-accent ${
+              section === id ? "text-accent" : "text-muted"
+            }`}
+          >
+            <Icon aria-hidden="true" className="size-5" strokeWidth={section === id ? 2.2 : 1.8} />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
+      </nav>
+
       {isMainMenuOpen && (
-        <div className="fixed inset-0 z-[70] hidden tablet:block">
+        <div className="fixed inset-0 z-[70]">
           <button
             type="button"
             aria-label="Close main menu"
@@ -174,6 +201,14 @@ export function MainNavigation({
             </div>
 
             <div className="py-2">
+                <MenuItem
+                  icon={ContactRound}
+                  label="Chats"
+                  onClick={() => {
+                    closeMenu();
+                    onMobileChats();
+                  }}
+                />
                 <MenuItem
                   icon={UserRound}
                   label="My Profile"

@@ -99,11 +99,15 @@ async function refreshSession(): Promise<boolean> {
         headers: { "x-csrf-token": csrfToken ?? "" },
         cache: "no-store",
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        csrfToken = undefined;
+        return false;
+      }
       const body = (await response.json()) as { csrfToken: string };
       csrfToken = body.csrfToken;
       return true;
     } catch {
+      csrfToken = undefined;
       return false;
     } finally {
       refreshInFlight = undefined;
@@ -212,7 +216,13 @@ export const api = {
       csrfToken = result.csrfToken;
       return result.data;
     },
-    logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+    logout: async () => {
+      try {
+        await request<void>("/api/auth/logout", { method: "POST" });
+      } finally {
+        csrfToken = undefined;
+      }
+    },
     requestPasswordReset: (email: string) =>
       request<{ data: { message: string } }>("/api/auth/password/forgot", {
         method: "POST",

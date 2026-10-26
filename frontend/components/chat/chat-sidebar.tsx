@@ -18,6 +18,7 @@ export function ChatSidebar({
   user,
   loading,
   mobileMenuOpen,
+  mobileListOpen,
   onMobileMenuOpenChange,
   onNewChat,
   onNewDirect,
@@ -35,6 +36,7 @@ export function ChatSidebar({
   user: User;
   loading: boolean;
   mobileMenuOpen: boolean;
+  mobileListOpen: boolean;
   onMobileMenuOpenChange: (open: boolean) => void;
   onNewChat: () => Promise<void>;
   onNewDirect: () => void;
@@ -158,26 +160,31 @@ export function ChatSidebar({
   }
 
   const sidebar = renderSection();
+  const sidebarVisible = mobileMenuOpen || mobileListOpen;
   return (
     <div
       className={`h-full min-h-0 w-full tablet:w-[19rem] tablet:shrink-0 ${
         mobileMenuOpen
           ? "fixed inset-0 z-40 tablet:relative tablet:inset-auto tablet:z-auto"
+          : mobileListOpen
+            ? "fixed inset-x-0 top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 h-auto tablet:relative tablet:inset-auto tablet:z-auto tablet:h-full"
           : "hidden tablet:block"
       }`}
     >
       <button
         type="button"
-        className="absolute inset-0 cursor-default bg-black/25 tablet:hidden"
+        className={`absolute inset-0 cursor-default bg-black/25 tablet:hidden ${
+          mobileListOpen ? "hidden" : ""
+        }`}
         aria-label="Close conversation menu"
         onClick={() => onMobileMenuOpenChange(false)}
-        tabIndex={mobileMenuOpen ? 0 : -1}
+        tabIndex={sidebarVisible && !mobileListOpen ? 0 : -1}
       />
       <div
         id="chat-conversation-drawer"
-        role={mobileMenuOpen ? "dialog" : undefined}
-        aria-label={mobileMenuOpen ? "Your conversations" : undefined}
-        aria-modal={mobileMenuOpen ? true : undefined}
+        role={sidebarVisible ? "dialog" : undefined}
+        aria-label={sidebarVisible ? "Your conversations" : undefined}
+        aria-modal={sidebarVisible ? true : undefined}
         className={`relative z-10 h-full border-r border-line bg-surface ${
           mobileMenuOpen ? "w-[min(20rem,86vw)] tablet:w-full" : "w-full"
         }`}

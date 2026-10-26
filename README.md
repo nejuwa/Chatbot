@@ -110,6 +110,15 @@ Configure the Vercel project:
 - Remove `NEXT_PUBLIC_API_BASE_URL` from production Vercel settings if it was set previously. Production browser requests use relative `/api` and `/socket.io` paths.
 - Set the Vercel project's production domain as Render's `CORS_ORIGIN`.
 - Set `GOOGLE_CALLBACK_URL` in Render to `https://your-project.vercel.app/api/auth/google/callback`. Add that exact URL to the Google OAuth client's **Authorized redirect URIs**. The callback goes to Vercel first and is proxied to Render.
+- To enable password-reset emails, configure all SMTP variables in Render. For a Gmail sender account, enable 2-Step Verification and create an App Password in that account's Google Account settings, then set:
+  - `SMTP_HOST=smtp.gmail.com`
+  - `SMTP_PORT=465`
+  - `SMTP_SECURE=true`
+  - `SMTP_USER` to the sender Gmail address
+  - `SMTP_PASSWORD` to that account's App Password (not its regular password)
+  - `SMTP_FROM` to the sender address, e.g. `Nova Chat <sender@gmail.com>`
+  - `PASSWORD_RESET_URL` to `https://your-project.vercel.app/reset-password`
+- `SMTP_USER` and `SMTP_FROM` are your application's sender identity; password-reset links are sent to the address entered by each user. Keep the App Password private and add it only as a Render environment variable. Save the settings and restart/redeploy the backend before testing.
 - Ensure `DATABASE_URL` is Neon pooled with `sslmode=require&connect_timeout=15`, and `DATABASE_URL_UNPOOLED` is Neon direct with `sslmode=require`.
 - Set the remaining backend secrets and the three Cloudinary variables in Render's Environment settings. Never commit their values.
 
