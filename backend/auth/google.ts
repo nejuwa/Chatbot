@@ -11,7 +11,7 @@ export const googleOAuthStateCookieName = "google_oauth_state";
 export const googleOAuthStateCookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  sameSite: (env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
   path: "/api/auth/google",
 };
 const stateCookieMaxAgeOptions = {
